@@ -112,6 +112,18 @@ extern int nildb_get(nildb *db,const void *key,void *vbuf);
  */
 extern int nildb_put(nildb *db,const void *key,const void *value);
 
+/**
+ * Delete an entry (overwriting it if it already exists)
+ *
+ * In the already-exists case the size of the database file does not
+ * change.
+ *
+ * @param db Database struct
+ * @param key Key (key_size bytes)
+ * @return -1 on I/O error, 0 on success
+ */
+extern int nildb_delete(nildb *db,const void *key);
+
 #ifdef __cplusplus
 }
 #endif

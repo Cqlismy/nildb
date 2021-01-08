@@ -27,7 +27,8 @@ static uint64_t nildb_hash(const void *b,unsigned long len) {
 	return hash;
 }
 
-int nildb_open( nildb *db, const char *path, uint32_t hash_table_size, uint32_t key_size, uint32_t value_size) {
+int nildb_open( nildb *db, const char *path, uint32_t hash_table_size, uint32_t key_size, uint32_t value_size)
+{
 	uint8_t buf[128];
 	uint32_t tmp32;
 
@@ -90,13 +91,15 @@ int nildb_open( nildb *db, const char *path, uint32_t hash_table_size, uint32_t 
 	return 0;
 }
 
-void nildb_close(nildb *db) {
+void nildb_close(nildb *db)
+{
 	if (db->f)
 		fclose(db->f);
 	memset(db,0,sizeof(nildb));
 }
 
-int nildb_get(nildb *db,const void *key,void *vbuf) {
+int nildb_get(nildb *db,const void *key,void *vbuf)
+{
 	uint8_t buf[4096];
 	unsigned long klen;
 	uint32_t hash_index= (uint32_t)(nildb_hash(key,db->key_size) % (uint64_t)db->hash_table_size);
@@ -151,7 +154,8 @@ int nildb_get(nildb *db,const void *key,void *vbuf) {
 	}
 }
 
-static int delete_entry(nildb *db){
+static int delete_entry(nildb *db)
+{
 	uint8_t buf[4];
 	buf[0]=0;
 	fwrite(buf,1,1,db->f);
@@ -161,7 +165,8 @@ static int delete_entry(nildb *db){
 
 /* write an entry to the current file position.
  * if update_next_offset is 0, the offset field will not be written*/
-static int write_entry(nildb *db,const void *key,const void *value, int update_next_offset,uint32_t next_offset_be){
+static int write_entry(nildb *db,const void *key,const void *value, int update_next_offset,uint32_t next_offset_be)
+{
 	uint8_t buf[8];
 	buf[0]=0x01;
 	if (update_next_offset){
@@ -178,7 +183,8 @@ static int write_entry(nildb *db,const void *key,const void *value, int update_n
 }
 
 /* append an entry and update the parent next offset field */
-static int append_entry(nildb *db,const void *key,const void *value,uint64_t parent_offset){
+static int append_entry(nildb *db,const void *key,const void *value,uint64_t parent_offset)
+{
 	int n;
 	off_t start_offset = NILDB_HEADER_SIZE + db->hash_table_size_bytes;
 	fseeko(db->f,0,SEEK_END);
@@ -202,7 +208,8 @@ static int append_entry(nildb *db,const void *key,const void *value,uint64_t par
 	return 0;
 }
 
-static int do_nildb_put(nildb *db,const void *key,const void *value, int delete) {
+static int do_nildb_put(nildb *db,const void *key,const void *value, int delete)
+{
 	uint8_t buf[4096];
 	const uint8_t *kptr;
 	unsigned long klen;
@@ -283,59 +290,12 @@ static int do_nildb_put(nildb *db,const void *key,const void *value, int delete)
 		}
 	}
 }
-int nildb_put(nildb *db,const void *key,const void *value) {
+int nildb_put(nildb *db,const void *key,const void *value)
+{
 	return do_nildb_put(db,key,value,0);
 }
-int nildb_delete(nildb *db,const void *key) {
+
+int nildb_delete(nildb *db,const void *key)
+{
 	return do_nildb_put(db,key,NULL,1);
 }
-
-#ifdef NILDB_TEST
-
-#include <inttypes.h>
-#define NUMENTRY 20000
-int main(int argc,char **argv)
-{
-	uint64_t i,j;
-	uint64_t v[8];
-	nildb db;
-	int q;
-
-	printf("Opening new empty database test.db...\n");
-
-	if (nildb_open(&db,"test.db",1024,8,sizeof(v))) {
-		printf("nildb_open failed\n");
-		return 1;
-	}
-
-	printf("Adding and then re-getting NUMENTRY 64-byte values...\n");
-
-	for(i=1;i<=NUMENTRY;++i) {
-		for(j=0;j<8;++j)
-			v[j] = i;
-		//printf("adding %lld\n",i);
-		if (nildb_put(&db,&i,v)) {
-			printf("nildb_put failed (%"PRIu64")\n",i);
-			return 1;
-		}
-	}
-
-	for(i=1;i<=NUMENTRY;++i) {
-		//printf("reading %lld\n",i);
-		if ((q = nildb_get(&db,&i,v))) {
-			printf("nildb_get (1) failed (%"PRIu64") (%d)\n",i,q);
-			return 1;
-		}
-		for(j=0;j<8;++j) {
-			if (v[j] != i) {
-				printf("nildb_get (1) failed, bad data (%"PRIu64")\n",i);
-				return 1;
-			}
-		}
-	}
-
-	nildb_close(&db);
-	printf("All tests OK!\n");
-	return 0;
-}
-#endif
