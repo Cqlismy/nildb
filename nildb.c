@@ -13,72 +13,96 @@
 
 #include "nildb.h"
 
-#define SIZE_OFFSET sizeof(uint32_t)
-#define NILDB_HEADER_SIZE (4 + sizeof(uint32_t)*3)
-#define META_SIZE	(1+SIZE_OFFSET)
-#define NULL_OFFSET	0xFFFFFFFF
+#define SIZE_OFFSET 		sizeof(uint32_t)
+#define NILDB_HEADER_SIZE 	(4 + sizeof(uint32_t) * 3)
+#define META_SIZE			(1 + SIZE_OFFSET)
+#define NULL_OFFSET			0xFFFFFFFF
 
 /* djb2 hash function */
-static uint64_t nildb_hash(const void *b,unsigned long len) {
+static uint64_t nildb_hash(const void *b, unsigned long len)
+{
 	unsigned long i;
 	uint64_t hash = 5381;
-	for(i=0;i<len;++i)
+
+	for(i = 0; i < len; ++i)
 		hash = ((hash << 5) + hash) + (uint64_t)(((const uint8_t *)b)[i]);
+	
 	return hash;
 }
 
-int nildb_open( nildb *db, const char *path, uint32_t hash_table_size, uint32_t key_size, uint32_t value_size)
+int nildb_open(nildb *db, const char *path, uint32_t hash_table_size, uint32_t key_size, uint32_t value_size)
 {
 	uint8_t buf[128];
 	uint32_t tmp32;
 
-	if ((!hash_table_size)||(!key_size)||(!value_size)) {
-		printf("Invalid hash_table_size:%u or key_size:%u or value_size:%u\n",hash_table_size,key_size,value_size);
+	if ((!hash_table_size) || (!key_size) || (!value_size))
+	{
+		printf("Invalid hash_table_size:%u or key_size:%u or value_size:%u\n",
+			hash_table_size, key_size, value_size);
+
 		return -1;
 	}
+
 	db->f = fopen(path,"r+b");
-	if (!db->f) {
+	if (!db->f)
+	{
 		int i;
 		db->f = fopen(path,"w+b");
 		if (!db->f)
 			return NILDB_ERROR_IO;
 
 		/* write header if not already present */
-		buf[0] = 'N'; buf[1] = 'D'; buf[2] = 'B'; buf[3] = NILDB_VERSION;
+		buf[0] = 'N';
+		buf[1] = 'D';
+		buf[2] = 'B';
+		buf[3] = NILDB_VERSION;
+
 		tmp32 = htobe32(hash_table_size);
-		memcpy(buf+4,&tmp32,4);
+		memcpy(buf + 4, &tmp32, 4);
+
 		tmp32 = htobe32(key_size);
-		memcpy(buf+8,&tmp32,4);
+		memcpy(buf + 8, &tmp32, 4);
+
 		tmp32 = htobe32(value_size);
-		memcpy(buf+12,&tmp32,4);
-		if (fwrite(buf,4,4,db->f) != 4) { 
+		memcpy(buf + 12, &tmp32, 4);
+
+		if (fwrite(buf, 4, 4, db->f) != 4)
+		{
 			fclose(db->f); 
 			return NILDB_ERROR_IO; 
 		}
-		for (i=0;i<hash_table_size;i++){
-			tmp32=htobe32(NULL_OFFSET);
-			fwrite(&tmp32,SIZE_OFFSET,1,db->f);
+
+		for (i = 0; i < hash_table_size; i++)
+		{
+			tmp32 = htobe32(NULL_OFFSET);
+			fwrite(&tmp32, SIZE_OFFSET, 1, db->f);
 		}
 		fflush(db->f);
-	}else{
-		if (fread(buf,4,4,db->f) != 4) { 
+	}
+	else
+	{
+		if (fread(buf, 4, 4, db->f) != 4)
+		{ 
 			printf("Error reading header. Invalid database file\n");
 			fclose(db->f); 
 			return NILDB_ERROR_IO; 
 		}
-		if ((buf[0] != 'N')||(buf[1] != 'D')||(buf[2] != 'B')||(buf[3] != NILDB_VERSION)) {
+
+		if ((buf[0] != 'N') || (buf[1] != 'D') || (buf[2] != 'B') || (buf[3] != NILDB_VERSION))
+		{
 			printf("Error, Invalid magic header. Invalid database file\n");
 			fclose(db->f);
 			return NILDB_ERROR_CORRUPT_DBFILE;
 		}
-		memcpy(&tmp32,buf+4,4);
+
+		memcpy(&tmp32, buf + 4, 4);
 		hash_table_size = be32toh(tmp32);
 		//printf("hash_table_size=%d\n",hash_table_size);
 
-		memcpy(&tmp32,buf+8,4);
+		memcpy(&tmp32, buf + 8, 4);
 		key_size = be32toh(tmp32);
 
-		memcpy(&tmp32,buf+12,4);
+		memcpy(&tmp32, buf + 12, 4);
 		value_size = be32toh(tmp32);
 	}
 
@@ -86,7 +110,6 @@ int nildb_open( nildb *db, const char *path, uint32_t hash_table_size, uint32_t 
 	db->key_size = key_size;
 	db->value_size = value_size;
 	db->hash_table_size_bytes = SIZE_OFFSET * hash_table_size;
-	printf("keysize=%d value_size=%d\n",key_size,value_size);
 
 	return 0;
 }
@@ -125,7 +148,8 @@ int nildb_get(nildb *db,const void *key,void *vbuf)
 	klen = db->key_size;
 
 	offset=NILDB_HEADER_SIZE + db->hash_table_size_bytes;
-	while(1){
+	while(1)
+	{
 		offset += offset32;
 
 		n = pread(fd,buf,META_SIZE+klen,offset);
@@ -208,29 +232,34 @@ static int append_entry(nildb *db,const void *key,const void *value,uint64_t par
 	return 0;
 }
 
-static int do_nildb_put(nildb *db,const void *key,const void *value, int delete)
+static int do_nildb_put(nildb *db, const void *key, const void *value, int delete)
 {
 	uint8_t buf[4096];
 	const uint8_t *kptr;
 	unsigned long klen;
-	uint32_t hash_index=(nildb_hash(key,db->key_size) % (uint64_t)db->hash_table_size);
+	uint32_t hash_index = (nildb_hash(key, db->key_size) % (uint64_t)db->hash_table_size);
 	off_t parent_offset;
 	size_t n;
-	uint32_t tmp32,offset32;
-	int fd=fileno(db->f);
+	uint32_t tmp32, offset32;
+	int fd = fileno(db->f);
 
+	test_log("hash_index = %u", hash_index);
 
-	/* read the first has index*/
-	parent_offset = NILDB_HEADER_SIZE + hash_index*SIZE_OFFSET;
-	n = pread(fd,&tmp32,SIZE_OFFSET,parent_offset);
-	if (n<SIZE_OFFSET){
+	/* read the first has index */
+	parent_offset = NILDB_HEADER_SIZE + hash_index * SIZE_OFFSET;
+	n = pread(fd, &tmp32, SIZE_OFFSET, parent_offset);
+	if (n < SIZE_OFFSET)
+	{
 		printf("Error reading first data loation.\n");
 		return -1;
 	}
-	offset32=be32toh(tmp32);
-	if (offset32==NULL_OFFSET){
-		if (!delete){
-			append_entry(db,key,value,parent_offset);
+
+	offset32 = be32toh(tmp32);
+	if (offset32 == NULL_OFFSET)
+	{
+		if (!delete)
+		{
+			append_entry(db, key, value, parent_offset);
 		}
 		return 0;
 	}
@@ -239,57 +268,77 @@ static int do_nildb_put(nildb *db,const void *key,const void *value, int delete)
 	klen = db->key_size;
 
 	parent_offset =  NILDB_HEADER_SIZE + db->hash_table_size_bytes;
-	uint64_t freeslot=0;
-	while(1){
+	uint64_t freeslot = 0;
+	while(1)
+	{
 		parent_offset += offset32;
 
-		n = (long)pread(fd,buf,META_SIZE+klen,parent_offset);
-		if (n<(META_SIZE+klen)){
+		n = (long)pread(fd, buf, META_SIZE + klen, parent_offset);
+		if (n < (META_SIZE + klen))
+		{
 			perror("put fread");
 			return -1; // not found
 		}
 
-		memcpy(&tmp32,buf+1,SIZE_OFFSET);
-		offset32=be32toh(tmp32);
+		memcpy(&tmp32, buf + 1, SIZE_OFFSET);
+		offset32 = be32toh(tmp32);
 
-		if ((buf[0]&0x01)==0x01){
+		if ((buf[0] & 0x01) == 0x01)
+		{
 			//printf("found active entry\n");
-			if (memcmp(kptr,buf+META_SIZE,klen)==0){
+			if (memcmp(kptr, buf + META_SIZE, klen) == 0)
+			{
 				//update, leave offset alone
 				//printf("same key, update it, delete=%d\n",delete);
-				fseeko(db->f,parent_offset,SEEK_SET);
-				if (delete){
+				fseeko(db->f, parent_offset, SEEK_SET);
+				if (delete)
+				{
 					delete_entry(db);
-				}else{
-					write_entry(db,key,value,0,0);
+				}
+				else
+				{
+					write_entry(db, key, value, 0, 0);
 				}
 				return 0;
-			}else{
+			}
+			else
+			{
 				//printf("not our key\n");
-				if (offset32==0){ //last entry. update or append to the end of file, and update this index
+				if (offset32 == 0)
+				{ //last entry. update or append to the end of file, and update this index
 					if (delete)
 						return 0;
-					if (freeslot==0){
+					if (freeslot == 0)
+					{
 						//printf("this is the end, append\n");
 						append_entry(db,key,value,parent_offset);
-					}else{
+					}
+					else
+					{
 						//printf("this is the end, write to the first free slot\n");
-						fseeko(db->f,freeslot,SEEK_SET);
-						write_entry(db,key,value,0,0);
+						fseeko(db->f, freeslot, SEEK_SET);
+						write_entry(db, key, value, 0, 0);
 					}
 					return 0;
-				}else{
+				}
+				else
+				{
 					//find next entry
 					continue;
 				}
 			}
-		}else{
-			if (freeslot==0){
+		}
+		else
+		{
+			if (freeslot == 0)
+			{
 				freeslot=parent_offset;
 			}
 		}
+		printf("while(1) running\r\n");
 	}
 }
+
 int nildb_put(nildb *db,const void *key,const void *value)
 {
 	return do_nildb_put(db,key,value,0);

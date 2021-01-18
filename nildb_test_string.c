@@ -5,16 +5,17 @@
 #include "nildb.h"
 
 #define NUMENTRY 5000
+
 int main(int argc, char **argv)
 {
 	unsigned int i;
-    char key_id[32];
-	char key_value[256];
+    char key[25];
+	char value[300];
 	nildb db;
 	int ret;
 
 	printf("Opening new empty database test.db...\n");
-    ret = nildb_open(&db, "test_string.db", 1024, 32, sizeof(key_value));
+    ret = nildb_open(&db, "test_string.db", 1024, sizeof(key), sizeof(value));
 	if (ret)
     {
 		printf("nildb_open failed\n");
@@ -23,48 +24,42 @@ int main(int argc, char **argv)
 
 	for (i = 1; i <= NUMENTRY; ++i)
     {
-		memset(key_id, 0, sizeof(key_id));
-        sprintf(key_id, "key_id:%u", i);
+		memset(key, 0, sizeof(key));
+        snprintf(key, sizeof(key), "key:%u", i);
 
-        memset(key_value, 0, sizeof(key_value));
-        sprintf(key_value, "user_info:%u", i);
+        memset(value, 0, sizeof(value));
+        snprintf(value, sizeof(value), "key:%u,open_type:1,verify_method:1,salt:1234,start_time:123456,end_time:654321,"
+		    "user_info:huangly,valid_count:-1", i);
 
-        ret = nildb_put(&db, key_id, key_value);
+        ret = nildb_put(&db, key, value);
 		if (ret)
         {
-			printf("nildb_put failed, key_id = %s, key_value = %s\n", key_id, key_value);
+			printf("nildb_put failed, key = %s, value = %s\n", key, value);
 			return -1;
 		}
 	}
 
 	for (i = 1; i <= NUMENTRY; ++i)
     {
-        memset(key_id, 0, sizeof(key_id));
-        sprintf(key_id, "key_id:%u", i);
-        memset(key_value, 0, sizeof(key_value));
+        memset(key, 0, sizeof(key));
+        snprintf(key, sizeof(key), "key:%u", i);
 
-        ret = nildb_get(&db, key_id, key_value);
+        memset(value, 0, sizeof(value));
+        ret = nildb_get(&db, key, value);
 		if (ret)
         {
-			printf("nildb_get failed, key_id = %s\n", key_id);
+			printf("nildb_get failed, key = %s\n", key);
 			return -1;
 		}
-        printf("nildb_get success, key_id = %s, key_value = %s\n", key_id, key_value);
+        printf("nildb_get success, key = %s, value = %s\n", key, value);
 	}
 
-    for (i = 1; i <= NUMENTRY; i++)
-    {
-        memset(key_id, 0, sizeof(key_id));
-        sprintf(key_id, "key_id:%u", i);
-
-        ret = nildb_delete(&db, key_id);
-        if (ret)
-        {
-            printf("nildb_delete failed, key_id = %s\n", key_id);
-            return -1;
-        }
-    }
-
+    /*
+    memset(key, 0, sizeof(key));
+    snprintf(key, sizeof(key), "key:%u", 25);
+    nildb_delete(&db, key);
+    */
+   
 	nildb_close(&db);
 	printf("All tests OK!\n");
 

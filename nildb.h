@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define test_log(fmt, ...) \
+	printf("[%s, %d] "fmt"\r\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
